@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polymarket-unofficial-app-for-win"
+version = "0.1.0"
+description = "Polymarket unofficial app for Windows."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "PySide6",
+  "qasync",
+  "polymarket-us",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "mypy",
+]
+
+[project.scripts]
+polyquick-us = "polymarket_terminal.quick_trade:main"
+polymarket-quick-trade = "polymarket_terminal.quick_trade:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["polymarket_terminal"]
+strict = true
+warn_unused_ignores = false
