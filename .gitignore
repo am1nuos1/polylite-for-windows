@@ -10,3 +10,4 @@ __pycache__/
 AGENTS.md
 agents.md
 *.png
+!wearefalcons.png

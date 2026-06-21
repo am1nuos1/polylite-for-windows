@@ -127,6 +127,10 @@ To remove persistent credentials:
 
 If best bid/ask is unavailable, enter `Manual limit price`; the tool previews a limit order using the USD amount converted to whole contracts. This is a resting order and may not fill immediately.
 
+Paste a market URL directly into the search box to find and lock the market:
+
+![Paste a Polymarket URL into the search box](wearefalcons.png)
+
 ## Positions
 
 Positions are shown in the right column. Summary view shows market, Value, and PnL. `Details` expands the full table.
