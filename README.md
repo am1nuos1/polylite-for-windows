@@ -28,7 +28,8 @@ python --version
 Create the local virtual environment and install the app:
 
 ```powershell
-cd C:\Users\czhang30\Desktop\polymarket
+git clone https://github.com/am1nuos1/polylite-for-windows.git
+cd polylite-for-windows
 uv venv --python 3.12
 uv pip install -e ".[dev]"
 ```
