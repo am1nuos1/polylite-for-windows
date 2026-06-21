@@ -11,6 +11,8 @@ from PySide6 import QtCore, QtWidgets
 
 from polymarket_terminal.models import AccountSummary, MarketSummary, OrderBookSummary, PositionRow
 from polymarket_terminal.quick_trade import (
+    DETAIL_WINDOW_SIZE,
+    SUMMARY_WINDOW_SIZE,
     QuickTradeWindow,
     cashout_side_for_position,
     extract_slug_from_query,
@@ -35,6 +37,18 @@ def test_submit_disabled_until_preview(app: QtWidgets.QApplication) -> None:
     assert not window.submit_button.isEnabled()
     assert not window.submit_button.autoDefault()
     assert not window.submit_button.isDefault()
+    window.close()
+
+
+def test_positions_summary_uses_smaller_window_and_details_expands(
+    app: QtWidgets.QApplication,
+) -> None:
+    window = QuickTradeWindow()
+    assert window.size() == SUMMARY_WINDOW_SIZE
+    window.positions_detail_button.click()
+    assert window.size() == DETAIL_WINDOW_SIZE
+    window.positions_detail_button.click()
+    assert window.size() == SUMMARY_WINDOW_SIZE
     window.close()
 
 

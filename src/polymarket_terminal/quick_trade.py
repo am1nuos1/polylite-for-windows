@@ -36,6 +36,9 @@ from polymarket_terminal.quick_trade_flow import (
     parse_trade_amount,
 )
 
+SUMMARY_WINDOW_SIZE = QtCore.QSize(960, 760)
+DETAIL_WINDOW_SIZE = QtCore.QSize(1280, 760)
+
 
 def format_balance(value: object) -> str:
     if value is None:
@@ -189,7 +192,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Polymarket Unofficial App for Win")
-        self.resize(1280, 760)
+        self.resize(SUMMARY_WINDOW_SIZE)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self._closing = False
         self.current_market: MarketSummary | None = None
@@ -568,7 +571,16 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
     def _positions_detail_toggled(self, checked: bool) -> None:
         self.position_details_visible = checked
         self.positions_detail_button.setText("Summary" if checked else "Details")
+        self._resize_for_position_mode(checked)
         self._render_positions()
+
+    def _resize_for_position_mode(self, details_visible: bool) -> None:
+        if self.isMaximized() or self.isFullScreen():
+            return
+        target = DETAIL_WINDOW_SIZE if details_visible else SUMMARY_WINDOW_SIZE
+        if self.size().width() == target.width() and self.size().height() == target.height():
+            return
+        self.resize(target)
 
     def _cashout_clicked(self) -> None:
         position = self.selected_position()
