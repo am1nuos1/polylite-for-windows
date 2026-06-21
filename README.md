@@ -4,6 +4,8 @@ Unofficial lightweight Windows desktop GUI for manual Polymarket US trading.
 
 This is a local personal app built with Python, PySide6, qasync, and the official `polymarket-us` SDK. It is not a web service, cloud backend, trading bot, or production trading platform.
 
+![Polylite for Windows quick trade window](screenshot.png)
+
 ## Features
 
 - Search markets by Polymarket URL, market slug, team name, or keyword.
