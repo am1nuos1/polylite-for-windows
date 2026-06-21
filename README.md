@@ -4,8 +4,6 @@ Unofficial lightweight Windows desktop GUI for manual Polymarket US trading.
 
 This is a local personal app built with Python, PySide6, qasync, and the official `polymarket-us` SDK. It is not a web service, cloud backend, trading bot, or production trading platform.
 
-![Paste a Polymarket URL into the search box](wearefalcons.png)
-
 ## Features
 
 - Search markets by Polymarket URL, market slug, team name, or keyword.
@@ -103,12 +101,16 @@ Open a new PowerShell window after setting persistent variables. To remove them:
 
 ## Usage
 
-1. Paste a Polymarket URL or search by team/market name.
+1. Copy a Polymarket market URL from the browser address bar, then paste it into the app search box. You can also search by team or market name.
 2. Select a result and click `Lock market`.
 3. Choose `Buy Yes`, `Buy No`, `Sell Yes`, or `Sell No`.
 4. Enter a USD amount.
 5. Wait for automatic preview.
 6. Click `Submit real order` only if the preview is correct.
+
+Example URL source:
+
+![Copy the market URL from the browser address bar](wearefalcons.png)
 
 If best bid/ask is unavailable, enter `Manual limit price`. The app previews a limit order by converting the USD amount into whole contracts. This can rest on the book and may not fill immediately.
 
