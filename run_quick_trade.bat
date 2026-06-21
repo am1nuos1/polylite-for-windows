@@ -3,24 +3,33 @@ setlocal
 
 cd /d "%~dp0"
 
-set "CONDA_BAT=C:\ProgramData\miniconda3\condabin\conda.bat"
+set "VENV_PYTHON=%~dp0.venv\Scripts\python.exe"
 
-if exist "%CONDA_BAT%" goto run_app
+if exist "%VENV_PYTHON%" goto run_venv
 
-where conda >nul 2>nul
+where uv >nul 2>nul
 if errorlevel 1 (
-    echo Could not find conda.
-    echo Expected: C:\ProgramData\miniconda3\condabin\conda.bat
+    echo Could not find uv or .venv.
     echo.
-    echo Open Anaconda Prompt or fix Conda PATH, then try again.
+    echo Install uv:
+    echo   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    echo.
+    echo Then run:
+    echo   uv venv --python 3.12
+    echo   uv pip install -e .[dev]
+    echo.
     pause
     exit /b 1
 )
 
-set "CONDA_BAT=conda"
+:run_uv
+uv run python -m polymarket_terminal.quick_trade
+goto handle_exit
 
-:run_app
-call "%CONDA_BAT%" run -n polymarket python -m polymarket_terminal.quick_trade
+:run_venv
+"%VENV_PYTHON%" -m polymarket_terminal.quick_trade
+
+:handle_exit
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (

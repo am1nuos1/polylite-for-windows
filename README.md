@@ -8,30 +8,77 @@ This project is unofficial and is not affiliated with, endorsed by, sponsored by
 
 This tool is intended for manual use only. It does not implement automated trading, strategy execution, market making, scraping, geoblock circumvention, or third-party account management.
 
+## Environment Setup
+
+Recommended setup uses `uv` on Windows PowerShell.
+
+Install `uv`:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Restart PowerShell, then check:
+
+```powershell
+uv --version
+python --version
+```
+
+Create the local virtual environment and install the app:
+
+```powershell
+cd C:\Users\czhang30\Desktop\polymarket
+uv venv --python 3.12
+uv pip install -e ".[dev]"
+```
+
+If Python 3.12 is not installed, let `uv` install/use it:
+
+```powershell
+uv python install 3.12
+uv venv --python 3.12
+uv pip install -e ".[dev]"
+```
+
+The project environment lives in:
+
+```text
+.venv
+```
+
+Do not commit `.venv`, API keys, or local cache folders.
+
 ## Run
 
-Double-click:
+Double-click from the project folder:
 
 ```text
 run_quick_trade.bat
 ```
 
-Or run from PowerShell:
+The batch file uses `.venv\Scripts\python.exe` when `.venv` exists. If `.venv` does not exist, it falls back to:
 
 ```powershell
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket python -m polymarket_terminal.quick_trade
+uv run python -m polymarket_terminal.quick_trade
+```
+
+Run manually from PowerShell:
+
+```powershell
+uv run python -m polymarket_terminal.quick_trade
 ```
 
 Installed console entry:
 
 ```powershell
-polyquick-us
+uv run polymarket-quick-trade
 ```
 
 The default module entry also launches the same quick trade tool:
 
 ```powershell
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket python -m polymarket_terminal
+uv run python -m polymarket_terminal
 ```
 
 ## Credentials
@@ -44,6 +91,30 @@ POLYMARKET_SECRET_KEY
 ```
 
 If both variables exist, the app attempts API login automatically. If they are missing or invalid, it asks for manual input. Authentication and network failures are shown as safe messages such as `Authentication failed`, `Network error`, `Request timed out`, or `Unable to connect`.
+
+Set credentials for the current PowerShell session:
+
+```powershell
+$env:POLYMARKET_KEY_ID = "your-key-id"
+$env:POLYMARKET_SECRET_KEY = "your-secret-key"
+uv run python -m polymarket_terminal.quick_trade
+```
+
+Set credentials persistently for your Windows user:
+
+```powershell
+[Environment]::SetEnvironmentVariable("POLYMARKET_KEY_ID", "your-key-id", "User")
+[Environment]::SetEnvironmentVariable("POLYMARKET_SECRET_KEY", "your-secret-key", "User")
+```
+
+After setting persistent variables, open a new PowerShell window before launching the app.
+
+To remove persistent credentials:
+
+```powershell
+[Environment]::SetEnvironmentVariable("POLYMARKET_KEY_ID", $null, "User")
+[Environment]::SetEnvironmentVariable("POLYMARKET_SECRET_KEY", $null, "User")
+```
 
 ## Quick Trade
 
@@ -76,10 +147,10 @@ Cashout:
 ## Verification
 
 ```powershell
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket python -m pytest -p no:cacheprovider
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket ruff check .
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket mypy src
-C:\ProgramData\miniconda3\condabin\conda.bat run -n polymarket python -m compileall src
+uv run python -m pytest -p no:cacheprovider
+uv run ruff check .
+uv run mypy src
+uv run python -m compileall src
 ```
 
 ## Safety
