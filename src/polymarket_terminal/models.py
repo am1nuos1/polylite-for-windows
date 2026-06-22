@@ -51,6 +51,9 @@ class MarketSummary:
     slug: str = UNAVAILABLE
     active: str = UNAVAILABLE
     outcomes: tuple[str, ...] = ()
+    side_labels: tuple[str, ...] = ()
+    market_type: str = UNAVAILABLE
+    sports_market_type: str = UNAVAILABLE
     live: bool = False
     event_title: str = UNAVAILABLE
 

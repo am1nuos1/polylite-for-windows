@@ -70,6 +70,8 @@ def test_market_box_uses_search_selection_for_lock(app: QtWidgets.QApplication) 
                 title="FURIA vs Team Falcons",
                 slug="aec-cs2-furia-fal-2026-06-21",
                 active="True",
+                side_labels=("FURIA", "Team Falcons"),
+                sports_market_type="moneyline",
                 live=True,
             ),
         )
@@ -77,10 +79,80 @@ def test_market_box_uses_search_selection_for_lock(app: QtWidgets.QApplication) 
     item = window.search_results.item(0)
     assert item.text() == "LIVE | FURIA vs Team Falcons\naec-cs2-furia-fal-2026-06-21"
     assert item.data(QtCore.Qt.ItemDataRole.UserRole) == "aec-cs2-furia-fal-2026-06-21"
+    assert not item.icon().isNull()
+    assert "Type: Moneyline" in item.toolTip()
+    assert "Sides: FURIA / Team Falcons" in item.toolTip()
     window._search_result_clicked(item)
     assert window.selected_slug_input.text() == "aec-cs2-furia-fal-2026-06-21"
     window._lock_market_clicked()
     assert slugs == ["aec-cs2-furia-fal-2026-06-21"]
+    window.close()
+
+
+def test_trade_side_combo_only_shows_buy_options_and_market_side_labels(
+    app: QtWidgets.QApplication,
+) -> None:
+    window = QuickTradeWindow()
+    assert [window.side_combo.itemText(index) for index in range(window.side_combo.count())] == [
+        "Buy Yes",
+        "Buy No",
+    ]
+
+    window.show_market(
+        MarketSummary(
+            title="Dallas Fuel vs Team Liquid",
+            slug="ow-dal-tl-2026-06-21",
+            side_labels=("Dallas Fuel", "Team Liquid"),
+            sports_market_type="moneyline",
+        ),
+        OrderBookSummary(best_bid=Decimal("0.40"), best_ask=Decimal("0.60")),
+    )
+    assert [window.side_combo.itemText(index) for index in range(window.side_combo.count())] == [
+        "Buy Dallas Fuel Win",
+        "Buy Team Liquid Win",
+    ]
+    assert [window.side_combo.itemData(index) for index in range(window.side_combo.count())] == [
+        QuickTradeSide.BUY_YES.value,
+        QuickTradeSide.BUY_NO.value,
+    ]
+    assert all(
+        "Sell" not in window.side_combo.itemText(index)
+        for index in range(window.side_combo.count())
+    )
+    window.close()
+
+
+def test_non_moneyline_market_can_use_specific_side_labels(app: QtWidgets.QApplication) -> None:
+    window = QuickTradeWindow()
+    window.show_market(
+        MarketSummary(
+            title="Tournament winner",
+            slug="winner-market",
+            side_labels=("Vitality", "NAVI"),
+        ),
+        OrderBookSummary(best_bid=Decimal("0.40"), best_ask=Decimal("0.60")),
+    )
+    assert [window.side_combo.itemText(index) for index in range(window.side_combo.count())] == [
+        "Buy Vitality",
+        "Buy NAVI",
+    ]
+    window.close()
+
+
+def test_non_live_search_result_has_no_live_marker(app: QtWidgets.QApplication) -> None:
+    window = QuickTradeWindow()
+    window.show_search_results(
+        (
+            MarketSummary(
+                title="Dallas Fuel vs Team Liquid",
+                slug="ow-dal-tl-2026-06-21",
+                live=False,
+            ),
+        )
+    )
+    item = window.search_results.item(0)
+    assert item.text() == "Dallas Fuel vs Team Liquid\now-dal-tl-2026-06-21"
+    assert item.icon().isNull()
     window.close()
 
 
@@ -230,7 +302,7 @@ def test_draft_from_inputs_uses_locked_market_and_bbo(app: QtWidgets.QApplicatio
         MarketSummary(title="Market A", slug="market-a", active="True", outcomes=("Yes", "No")),
         OrderBookSummary(best_bid=Decimal("0.40"), best_ask=Decimal("0.60")),
     )
-    window.side_combo.setCurrentText(QuickTradeSide.BUY_YES.value)
+    window.side_combo.setCurrentIndex(0)
     window.amount_input.setText("15.25")
     draft = window.draft_from_inputs()
     assert draft is not None
@@ -274,21 +346,9 @@ def test_fill_manual_price_uses_ask_for_buy_side(app: QtWidgets.QApplication) ->
         MarketSummary(title="Market A", slug="market-a", active="True", outcomes=("Yes", "No")),
         OrderBookSummary(best_bid=Decimal("0.41"), best_ask=Decimal("0.59")),
     )
-    window.side_combo.setCurrentText(QuickTradeSide.BUY_YES.value)
+    window.side_combo.setCurrentIndex(0)
     window.fill_manual_limit_from_market_price()
     assert window.manual_limit_price_input.text() == "0.59"
-    window.close()
-
-
-def test_fill_manual_price_uses_bid_for_sell_side(app: QtWidgets.QApplication) -> None:
-    window = QuickTradeWindow()
-    window.show_market(
-        MarketSummary(title="Market A", slug="market-a", active="True", outcomes=("Yes", "No")),
-        OrderBookSummary(best_bid=Decimal("0.41"), best_ask=Decimal("0.59")),
-    )
-    window.side_combo.setCurrentText(QuickTradeSide.SELL_YES.value)
-    window.fill_manual_limit_from_market_price()
-    assert window.manual_limit_price_input.text() == "0.41"
     window.close()
 
 

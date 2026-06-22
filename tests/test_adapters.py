@@ -96,7 +96,13 @@ def test_search_events_to_markets() -> None:
                             "title": "Market A",
                             "slug": "market-a",
                             "active": True,
+                            "marketType": "moneyline",
+                            "sportsMarketType": "moneyline",
                             "outcomes": '["Yes","No"]',
+                            "marketSides": [
+                                {"description": "FURIA", "long": True},
+                                {"description": "Team Falcons", "long": False},
+                            ],
                         },
                         {"title": "Market B", "slug": "market-b", "active": False},
                     ]
@@ -107,7 +113,31 @@ def test_search_events_to_markets() -> None:
     assert [row.slug for row in rows] == ["market-a", "market-b"]
     assert rows[0].live is True
     assert rows[0].outcomes == ("Yes", "No")
+    assert rows[0].side_labels == ("FURIA", "Team Falcons")
+    assert rows[0].market_type == "moneyline"
+    assert rows[0].sports_market_type == "moneyline"
     assert rows[0].event_title == "FURIA vs Team Falcons"
+
+
+def test_market_side_labels_use_structured_long_side_order() -> None:
+    rows = adapt_search_markets(
+        {
+            "events": [
+                {
+                    "markets": [
+                        {
+                            "slug": "market-a",
+                            "marketSides": [
+                                {"description": "Team Liquid", "long": False},
+                                {"description": "Dallas Fuel", "long": True},
+                            ],
+                        },
+                    ]
+                }
+            ]
+        }
+    )
+    assert rows[0].side_labels == ("Dallas Fuel", "Team Liquid")
 
 
 def test_order_book_and_open_orders() -> None:

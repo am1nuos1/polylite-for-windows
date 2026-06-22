@@ -40,6 +40,43 @@ SUMMARY_WINDOW_SIZE = QtCore.QSize(960, 760)
 DETAIL_WINDOW_SIZE = QtCore.QSize(1280, 760)
 
 
+def live_search_icon() -> QtGui.QIcon:
+    pixmap = QtGui.QPixmap(8, 28)
+    pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+    painter = QtGui.QPainter(pixmap)
+    painter.fillRect(0, 0, 4, 28, QtGui.QColor("#d93025"))
+    painter.end()
+    return QtGui.QIcon(pixmap)
+
+
+def market_type_label(market: MarketSummary) -> str:
+    raw_type = (
+        market.sports_market_type
+        if market.sports_market_type != UNAVAILABLE
+        else market.market_type
+    )
+    if raw_type == UNAVAILABLE:
+        return UNAVAILABLE
+    label = raw_type.replace("_", " ").replace("-", " ").strip()
+    return label.title() if label else UNAVAILABLE
+
+
+def is_moneyline_market(market: MarketSummary) -> bool:
+    return "moneyline" in {
+        market.market_type.casefold(),
+        market.sports_market_type.casefold(),
+    }
+
+
+def buy_side_labels_for_market(market: MarketSummary) -> tuple[str, str]:
+    labels = market.side_labels or market.outcomes
+    if len(labels) >= 2:
+        if is_moneyline_market(market):
+            return (f"{labels[0]} Win", f"{labels[1]} Win")
+        return (labels[0], labels[1])
+    return ("Yes", "No")
+
+
 def format_balance(value: object) -> str:
     if value is None:
         return "unavailable"
@@ -291,7 +328,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         box = QtWidgets.QGroupBox("Quick market order")
         form = QtWidgets.QFormLayout(box)
         self.side_combo = QtWidgets.QComboBox()
-        self.side_combo.addItems([side.value for side in QuickTradeSide])
+        self._set_buy_side_options(("Yes", "No"))
         self.amount_input = QtWidgets.QLineEdit()
         self.amount_input.setPlaceholderText("Dollar amount")
         self.slippage_input = QtWidgets.QLineEdit(str(DEFAULT_SLIPPAGE_TICKS))
@@ -449,6 +486,17 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
             badge = "LIVE | " if market.live else ""
             item = QtWidgets.QListWidgetItem(f"{badge}{market.title}\n{market.slug}")
             item.setData(QtCore.Qt.ItemDataRole.UserRole, market.slug)
+            details = []
+            type_label = market_type_label(market)
+            if type_label != UNAVAILABLE:
+                details.append(f"Type: {type_label}")
+            labels = market.side_labels or market.outcomes
+            if labels:
+                details.append(f"Sides: {' / '.join(labels)}")
+            if details:
+                item.setToolTip("\n".join(details))
+            if market.live:
+                item.setIcon(live_search_icon())
             self.search_results.addItem(item)
 
     def show_market(self, market: MarketSummary, order_book: OrderBookSummary) -> None:
@@ -456,6 +504,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         self.current_order_book = order_book
         self.selected_search_slug = market.slug
         self.selected_slug_input.setText(market.slug)
+        self._set_buy_side_options(buy_side_labels_for_market(market))
         self.queue_auto_preview()
 
     def show_preview(self, preview: QuickTradePreview) -> None:
@@ -500,7 +549,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         if self.current_market is None:
             self.show_preview_error("Lock a market first.")
             return
-        side = QuickTradeSide(self.side_combo.currentText())
+        side = self._selected_trade_side()
         price = current_price_for_side(side, self.current_order_book)
         if price is None:
             buy_sides = {QuickTradeSide.BUY_YES, QuickTradeSide.BUY_NO}
@@ -517,7 +566,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         if amount is None:
             self.show_preview_error("Enter a dollar amount greater than 0.")
             return None
-        side = QuickTradeSide(self.side_combo.currentText())
+        side = self._selected_trade_side()
         current_price = current_price_for_side(side, self.current_order_book)
         order_kind = QuickOrderKind.MARKET
         if current_price is None:
@@ -545,6 +594,31 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
             slippage_ticks=slippage_ticks,
             order_kind=order_kind,
         )
+
+    def _set_buy_side_options(self, labels: tuple[str, str]) -> None:
+        current_side = self._selected_trade_side(default=QuickTradeSide.BUY_YES)
+        self.side_combo.blockSignals(True)
+        self.side_combo.clear()
+        self.side_combo.addItem(f"Buy {labels[0]}", QuickTradeSide.BUY_YES.value)
+        self.side_combo.addItem(f"Buy {labels[1]}", QuickTradeSide.BUY_NO.value)
+        index = 0 if current_side == QuickTradeSide.BUY_YES else 1
+        self.side_combo.setCurrentIndex(index)
+        self.side_combo.blockSignals(False)
+
+    def _selected_trade_side(
+        self,
+        default: QuickTradeSide = QuickTradeSide.BUY_YES,
+    ) -> QuickTradeSide:
+        value = self.side_combo.currentData()
+        if isinstance(value, str):
+            try:
+                return QuickTradeSide(value)
+            except ValueError:
+                return default
+        try:
+            return QuickTradeSide(self.side_combo.currentText())
+        except ValueError:
+            return default
 
     def _search_clicked(self) -> None:
         query = self.search_input.text().strip()

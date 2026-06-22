@@ -1,31 +1,24 @@
 # Polylite for Windows
 
-Unofficial lightweight Windows desktop GUI for manual Polymarket US trading.
+Unofficial lightweight desktop app for manual Polymarket US trading on Windows.
 
-This is a local personal app built with Python, PySide6, qasync, and the official `polymarket-us` SDK. It is not a web service, cloud backend, trading bot, or production trading platform.
+Polylite is a local PySide6 GUI built on the `polymarket-us` SDK. It is designed for personal account access: search or paste a market URL, lock one market, preview an order, and submit only after confirmation.
 
 ![Polylite for Windows quick trade window](screenshot.png)
 
-## Features
+## Highlights
 
-- Search markets by Polymarket URL, market slug, team name, or keyword.
-- Lock one market and trade from a small desktop window.
-- Buy Yes, Buy No, Sell Yes, or Sell No with a USD amount.
-- Automatically previews orders before allowing submission.
-- Requires explicit confirmation before any real order is sent.
-- Shows balance, buying power, positions, compact PnL, and position details.
-- Supports manual refresh and optional realtime refresh polling.
-- Supports full or partial cashout from a selected position.
-- Keeps API credentials in process memory only.
-
-## Requirements
-
-- Windows
-- Python 3.12
-- `uv`
-- Polymarket US API Key ID and Secret Key for authenticated account actions
-
-Market search can be used without API credentials when the API allows public access. Preview, submit, balances, positions, and cashout require authenticated Polymarket US credentials.
+- Local Windows desktop app. No cloud backend or web service.
+- Polymarket US only.
+- Search by market URL, slug, team name, or keyword.
+- Lock one market before trading.
+- Buy either side with a USD amount.
+- Sell through the Positions cashout panel.
+- Automatic `orders.preview()` before submit.
+- Explicit confirmation before `orders.create()`.
+- Balance, buying power, compact positions, PnL, and details view.
+- Manual refresh and optional realtime refresh.
+- API credentials are kept in process memory only.
 
 ## Install
 
@@ -35,7 +28,7 @@ Install `uv` in PowerShell:
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Restart PowerShell, then install the app:
+Clone and install:
 
 ```powershell
 git clone https://github.com/am1nuos1/polylite-for-windows.git
@@ -44,8 +37,6 @@ uv python install 3.12
 uv venv --python 3.12
 uv pip install -e ".[dev]"
 ```
-
-The local environment is created in `.venv`. Do not commit `.venv`, `.env`, API keys, or local cache folders.
 
 ## Run
 
@@ -61,25 +52,25 @@ Or run from PowerShell:
 uv run python -m polymarket_terminal.quick_trade
 ```
 
-Equivalent entry points:
+Equivalent commands:
 
 ```powershell
 uv run python -m polymarket_terminal
 uv run polymarket-quick-trade
 ```
 
-## Credentials
+## API Credentials
 
-At startup, the app reads these environment variables:
+Trading and account data require Polymarket US API credentials.
 
-```powershell
+The app reads:
+
+```text
 POLYMARKET_KEY_ID
 POLYMARKET_SECRET_KEY
 ```
 
-If both are present, the app attempts login automatically. If either is missing or invalid, the login dialog asks for manual input. Error messages are sanitized and do not echo secrets.
-
-Set credentials for the current PowerShell session:
+Set them for the current PowerShell session:
 
 ```powershell
 $env:POLYMARKET_KEY_ID = "your-key-id"
@@ -87,14 +78,16 @@ $env:POLYMARKET_SECRET_KEY = "your-secret-key"
 uv run python -m polymarket_terminal.quick_trade
 ```
 
-Set credentials persistently for your Windows user:
+Set them persistently for your Windows user:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("POLYMARKET_KEY_ID", "your-key-id", "User")
 [Environment]::SetEnvironmentVariable("POLYMARKET_SECRET_KEY", "your-secret-key", "User")
 ```
 
-Open a new PowerShell window after setting persistent variables. To remove them:
+Open a new PowerShell window after setting persistent variables.
+
+Remove them:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("POLYMARKET_KEY_ID", $null, "User")
@@ -103,45 +96,43 @@ Open a new PowerShell window after setting persistent variables. To remove them:
 
 ## Usage
 
-1. Copy a Polymarket market URL from the browser address bar, then paste it into the app search box. You can also search by team or market name.
+1. Paste a Polymarket market URL or search by name.
 2. Select a result and click `Lock market`.
-3. Choose `Buy Yes`, `Buy No`, `Sell Yes`, or `Sell No`.
+3. Choose the side to buy.
 4. Enter a USD amount.
-5. Wait for automatic preview.
+5. Review the automatic preview.
 6. Click `Submit real order` only if the preview is correct.
 
-Example URL source:
+Copy the market URL from the browser address bar:
 
 ![Copy the market URL from the browser address bar](wearefalcons.png)
 
-If best bid/ask is unavailable, enter `Manual limit price`. The app previews a limit order by converting the USD amount into whole contracts. This can rest on the book and may not fill immediately.
+If best bid/ask is unavailable, enter `Manual limit price`. This creates a limit-order preview using whole contracts and may not fill immediately.
 
-## Positions
+## Positions And Cashout
 
-The right column shows positions. Compact view shows market, value, and PnL. `Details` expands the full table.
+Positions are shown in the right column.
 
-Cashout:
-
-- Select a position row.
+- Summary view shows market, value, and PnL.
+- `Details` expands the full table.
+- Select a position to cash out.
 - Leave `Cashout amount USD` blank for full cashout.
 - Enter a positive USD amount for partial cashout.
-- Confirm before submission.
+- Confirm before any real order is submitted.
 
-`Refresh all` updates balance, buying power, positions, and the locked market/order book. `Realtime refresh` polls the same refresh path every 5 seconds and skips overlapping refreshes.
+`Refresh all` updates balance, buying power, positions, and the locked market/order book. `Realtime refresh` runs the same refresh path every 5 seconds and skips overlapping refreshes.
 
-## Safety Model
+## Safety
 
-- No automated trading, strategies, market making, scraping, bulk actions, or third-party account management.
-- Preview calls only `orders.preview()`.
-- Real submission calls `orders.create()` only after a successful preview and user confirmation.
-- Any market, side, amount, slippage, or price change invalidates the old preview.
-- Submissions are locked while in progress and are not retried automatically.
-- Timeout or unknown create status triggers account/order reconciliation.
-- Missing API fields are shown as `unavailable`, not fabricated as zero.
+- Manual trading only.
+- No automated trading, strategy execution, market making, scraping, or bulk actions.
+- Preview must succeed before submit is enabled.
+- Changing market, side, amount, slippage, or price invalidates the preview.
+- Submit is locked while in progress.
+- Failed, timed out, or unknown create results are not retried automatically.
+- Missing API fields are shown as `unavailable`.
 
 ## Development
-
-Run checks:
 
 ```powershell
 uv run python -m pytest -p no:cacheprovider
@@ -152,8 +143,4 @@ uv run python -m compileall src
 
 ## Disclaimer
 
-This project is unofficial and is not affiliated with, endorsed by, sponsored by, or approved by Polymarket. It is a personal desktop client for Polymarket US account access. Trading involves risk and may result in loss. Use it at your own responsibility and comply with Polymarket US rules, API terms, and applicable law.
-
-## License
-
-No license file has been added yet.
+This project is unofficial and is not affiliated with, endorsed by, sponsored by, or approved by Polymarket. Trading involves risk and may result in loss. Use at your own responsibility and comply with Polymarket US rules, API terms, and applicable law.

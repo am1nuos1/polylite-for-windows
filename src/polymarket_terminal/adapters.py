@@ -88,6 +88,29 @@ def read_outcomes(raw: object) -> tuple[str, ...]:
     return ()
 
 
+def read_market_side_labels(raw: object) -> tuple[str, ...]:
+    market_sides = read_field(raw, "marketSides")
+    if not isinstance(market_sides, Iterable) or isinstance(
+        market_sides,
+        (str, bytes, Mapping),
+    ):
+        return ()
+    long_labels: list[str] = []
+    short_labels: list[str] = []
+    fallback_labels: list[str] = []
+    for side in market_sides:
+        label = read_text(side, "description")
+        if label == UNAVAILABLE:
+            continue
+        fallback_labels.append(label)
+        if read_bool(side, "long"):
+            long_labels.append(label)
+        else:
+            short_labels.append(label)
+    ordered_labels = long_labels + short_labels
+    return tuple(ordered_labels or fallback_labels)
+
+
 def adapt_market(
     raw: object,
     live: bool | None = None,
@@ -102,6 +125,9 @@ def adapt_market(
         slug=read_text(raw, "slug", "marketSlug", "market_slug"),
         active=read_text(raw, "active", "isActive", "status"),
         outcomes=read_outcomes(raw),
+        side_labels=read_market_side_labels(raw),
+        market_type=read_text(raw, "marketType", "type"),
+        sports_market_type=read_text(raw, "sportsMarketType"),
         live=is_live,
         event_title=event_title,
     )
