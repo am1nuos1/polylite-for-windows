@@ -12,6 +12,7 @@ from polymarket_terminal.quick_trade_flow import (
     QuickTradeSide,
     current_price_for_side,
     parse_trade_amount,
+    should_cancel_unfilled_limit_order,
 )
 
 
@@ -20,6 +21,7 @@ class FakeOrders:
         self.preview_calls: list[dict[str, object]] = []
         self.create_calls: list[dict[str, object]] = []
         self.timeout_create = False
+        self.create_response: dict[str, object] = {"id": "order-1", "status": "ORDER_STATE_FILLED"}
 
     async def preview(self, payload: dict[str, object]) -> dict[str, object]:
         self.preview_calls.append(payload)
@@ -29,7 +31,7 @@ class FakeOrders:
         self.create_calls.append(payload)
         if self.timeout_create:
             raise TimeoutError
-        return {"id": "order-1", "status": "ORDER_STATE_FILLED"}
+        return self.create_response
 
 
 class FakeClient:
@@ -37,12 +39,16 @@ class FakeClient:
         self.orders = FakeOrders()
         self.reconciled = 0
         self.refreshed = 0
+        self.cancel_calls: list[tuple[str, str]] = []
 
     async def reconcile_after_unknown_order_state(self) -> None:
         self.reconciled += 1
 
     async def refresh_after_order_change(self) -> None:
         self.refreshed += 1
+
+    async def cancel_order(self, market_slug: str, order_id: str) -> None:
+        self.cancel_calls.append((market_slug, order_id))
 
 
 def draft(side: QuickTradeSide = QuickTradeSide.BUY_YES) -> QuickTradeDraft:
@@ -95,6 +101,16 @@ def test_limit_fallback_payload_uses_manual_price_and_integer_quantity() -> None
     assert "cashOrderQty" not in payload
 
 
+def limit_draft() -> QuickTradeDraft:
+    return QuickTradeDraft(
+        market_slug="market-a",
+        side=QuickTradeSide.BUY_YES,
+        dollar_amount=Decimal("10.00"),
+        current_price=Decimal("0.40"),
+        order_kind=QuickOrderKind.LIMIT,
+    )
+
+
 @pytest.mark.parametrize(
     "bad_draft",
     [
@@ -134,6 +150,45 @@ def test_submit_uses_latest_preview_payload() -> None:
     assert submitted.order_id == "order-1"
     assert len(client.orders.create_calls) == 1
     assert client.orders.create_calls[0]["marketSlug"] == "market-a"
+
+
+def test_submit_cancels_unfilled_limit_order() -> None:
+    client = FakeClient()
+    client.orders.create_response = {"id": "order-1", "status": "ORDER_STATE_OPEN"}
+    flow = QuickTradeFlow(client)
+    preview = asyncio.run(flow.preview_order(limit_draft()))
+    submitted = asyncio.run(flow.submit_previewed_order(preview))
+    assert submitted.order_id == "order-1"
+    assert submitted.status == "ORDER_STATE_OPEN; canceled unfilled limit order"
+    assert client.cancel_calls == [("market-a", "order-1")]
+    assert client.refreshed == 1
+
+
+def test_submit_does_not_cancel_filled_limit_order() -> None:
+    client = FakeClient()
+    client.orders.create_response = {"id": "order-1", "status": "ORDER_STATE_FILLED"}
+    flow = QuickTradeFlow(client)
+    preview = asyncio.run(flow.preview_order(limit_draft()))
+    submitted = asyncio.run(flow.submit_previewed_order(preview))
+    assert submitted.status == "ORDER_STATE_FILLED"
+    assert client.cancel_calls == []
+    assert client.refreshed == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("unavailable", True),
+        ("ORDER_STATE_OPEN", True),
+        ("ORDER_STATE_PENDING", True),
+        ("ORDER_STATE_PARTIALLY_FILLED", True),
+        ("ORDER_STATE_FILLED", False),
+        ("ORDER_STATE_COMPLETED", False),
+        ("ORDER_STATE_EXECUTED", False),
+    ],
+)
+def test_unfilled_limit_cancel_status_detection(status: str, expected: bool) -> None:
+    assert should_cancel_unfilled_limit_order(status) is expected
 
 
 def test_stale_preview_rejected() -> None:

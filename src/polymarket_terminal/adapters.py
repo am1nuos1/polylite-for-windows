@@ -186,6 +186,8 @@ def adapt_position(raw: object) -> PositionRow | None:
     )
     if net_contracts == Decimal("0"):
         return None
+    if direction == UNAVAILABLE and net_contracts is not None:
+        direction = "Long" if net_contracts > Decimal("0") else "Short"
     current_value = read_decimal(raw, "cashValue", "currentValue", "value")
     cost_basis = read_decimal(raw, "cost", "costBasis", "cost_basis")
     estimated = calculate_estimated_pnl(current_value, cost_basis)

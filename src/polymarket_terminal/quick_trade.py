@@ -36,8 +36,11 @@ from polymarket_terminal.quick_trade_flow import (
     parse_trade_amount,
 )
 
-SUMMARY_WINDOW_SIZE = QtCore.QSize(960, 760)
-DETAIL_WINDOW_SIZE = QtCore.QSize(1280, 760)
+SUMMARY_WINDOW_SIZE = QtCore.QSize(1180, 760)
+DETAIL_WINDOW_SIZE = QtCore.QSize(1480, 760)
+REALTIME_REFRESH_INTERVAL_MS = 1000
+SEARCH_PANEL_WIDTH = 360
+BUY_PANEL_WIDTH = 360
 
 
 def live_search_icon() -> QtGui.QIcon:
@@ -91,6 +94,11 @@ def cashout_side_for_position(position: PositionRow) -> QuickTradeSide | None:
         return QuickTradeSide.SELL_YES
     if "short" in direction:
         return QuickTradeSide.SELL_NO
+    if position.net_contracts is not None:
+        if position.net_contracts > Decimal("0"):
+            return QuickTradeSide.SELL_YES
+        if position.net_contracts < Decimal("0"):
+            return QuickTradeSide.SELL_NO
     return None
 
 
@@ -236,6 +244,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         self.current_order_book = OrderBookSummary()
         self.current_positions: tuple[PositionRow, ...] = ()
         self.selected_search_slug: str | None = None
+        self.search_result_markets: dict[str, MarketSummary] = {}
         self.position_details_visible = False
 
         root = QtWidgets.QWidget()
@@ -250,6 +259,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         self.refresh_account_button.clicked.connect(self.refresh_account_requested.emit)
         self.realtime_refresh_toggle = QtWidgets.QCheckBox("Realtime refresh")
         self.realtime_refresh_toggle.toggled.connect(self._realtime_refresh_toggled)
+        self.realtime_refresh_toggle.setChecked(True)
         self.warning_label = QtWidgets.QLabel("Real trading account. Orders may use real funds.")
         self.warning_label.setStyleSheet("font-weight: 600; color: #8a3b00;")
         layout.addWidget(self.status_label)
@@ -265,12 +275,16 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         body = QtWidgets.QHBoxLayout()
         layout.addLayout(body, stretch=1)
 
-        left_panel = QtWidgets.QWidget()
-        left_panel.setFixedWidth(520)
-        left_layout = QtWidgets.QVBoxLayout(left_panel)
-        left_layout.addWidget(self._build_market_box())
-        left_layout.addWidget(self._build_trade_box())
-        left_layout.addWidget(self._build_preview_box(), stretch=1)
+        search_panel = QtWidgets.QWidget()
+        search_panel.setFixedWidth(SEARCH_PANEL_WIDTH)
+        search_layout = QtWidgets.QVBoxLayout(search_panel)
+        search_layout.addWidget(self._build_market_box(), stretch=1)
+
+        buy_panel = QtWidgets.QWidget()
+        buy_panel.setFixedWidth(BUY_PANEL_WIDTH)
+        buy_layout = QtWidgets.QVBoxLayout(buy_panel)
+        buy_layout.addWidget(self._build_trade_box())
+        buy_layout.addWidget(self._build_preview_box(), stretch=1)
 
         self.submit_button = QtWidgets.QPushButton("Submit real order")
         self.submit_button.setEnabled(False)
@@ -282,9 +296,10 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         footer = QtWidgets.QHBoxLayout()
         footer.addWidget(self.submit_button)
         footer.addWidget(self.disconnect_button)
-        left_layout.addLayout(footer)
+        buy_layout.addLayout(footer)
 
-        body.addWidget(left_panel)
+        body.addWidget(search_panel)
+        body.addWidget(buy_panel)
         body.addWidget(self._build_positions_box(), stretch=1)
 
         self._preview_timer = QtCore.QTimer(self)
@@ -292,8 +307,11 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         self._preview_timer.setInterval(500)
         self._preview_timer.timeout.connect(self.trade_changed.emit)
         self._realtime_refresh_timer = QtCore.QTimer(self)
-        self._realtime_refresh_timer.setInterval(5000)
+        self._realtime_refresh_timer.setInterval(REALTIME_REFRESH_INTERVAL_MS)
         self._realtime_refresh_timer.timeout.connect(self.refresh_account_requested.emit)
+        if self.realtime_refresh_toggle.isChecked():
+            self._realtime_refresh_timer.start()
+            QtCore.QTimer.singleShot(0, self.refresh_account_requested.emit)
         for widget in (
             self.amount_input,
             self.slippage_input,
@@ -303,7 +321,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         self.side_combo.currentIndexChanged.connect(self.queue_auto_preview)
 
     def _build_market_box(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Market")
+        box = QtWidgets.QGroupBox("Search")
         layout = QtWidgets.QVBoxLayout(box)
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Search game/team/market")
@@ -325,7 +343,7 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         return box
 
     def _build_trade_box(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Quick market order")
+        box = QtWidgets.QGroupBox("Buy")
         form = QtWidgets.QFormLayout(box)
         self.side_combo = QtWidgets.QComboBox()
         self._set_buy_side_options(("Yes", "No"))
@@ -477,12 +495,15 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
 
     def show_search_results(self, markets: tuple[MarketSummary, ...]) -> None:
         self.selected_search_slug = None
+        self.search_result_markets = {}
         self.selected_slug_input.clear()
         self.search_results.clear()
+        self._set_buy_side_options(("Yes", "No"))
         if not markets:
             self.search_results.addItem("No matching markets")
             return
         for market in markets:
+            self.search_result_markets[market.slug] = market
             badge = "LIVE | " if market.live else ""
             item = QtWidgets.QListWidgetItem(f"{badge}{market.title}\n{market.slug}")
             item.setData(QtCore.Qt.ItemDataRole.UserRole, market.slug)
@@ -629,6 +650,12 @@ class QuickTradeWindow(QtWidgets.QMainWindow):
         slug = item.data(QtCore.Qt.ItemDataRole.UserRole)
         self.selected_search_slug = slug if isinstance(slug, str) and slug else None
         self.selected_slug_input.setText(self.selected_search_slug or "")
+        if self.selected_search_slug is None:
+            self._set_buy_side_options(("Yes", "No"))
+            return
+        market = self.search_result_markets.get(self.selected_search_slug)
+        if market is not None:
+            self._set_buy_side_options(buy_side_labels_for_market(market))
 
     def _lock_market_clicked(self) -> None:
         slug = self.selected_search_slug
@@ -847,48 +874,21 @@ async def cashout_position(
     if window.cashout_amount_input.text().strip() and cashout_amount is None:
         window.show_preview_error("Cashout amount must be greater than 0.")
         return
-    if cashout_amount is not None:
-        await cashout_partial_position(
-            window,
-            flow,
-            client,
-            position,
-            cashout_amount,
-            slippage_ticks,
-        )
-        return
-    confirm = QtWidgets.QMessageBox(window)
-    confirm.setWindowTitle("Cash out position")
-    confirm.setText(
-        "\n".join(
-            [
-                "Close this market position?",
-                f"Market: {position.market}",
-                f"Outcome: {position.outcome}",
-                f"Net: {position.net_contracts}",
-                f"Slug: {market_slug}",
-                "This submits a real close-position order and may use real funds.",
-            ]
-        )
+    if cashout_amount is None:
+        cashout_amount = position.current_value
+        if cashout_amount is None or cashout_amount <= Decimal("0"):
+            window.show_preview_error(
+                "Current position value is unavailable. Enter a cashout amount in USD."
+            )
+            return
+    await cashout_partial_position(
+        window,
+        flow,
+        client,
+        position,
+        cashout_amount,
+        slippage_ticks,
     )
-    confirm.setIcon(QtWidgets.QMessageBox.Icon.Warning)
-    confirm.setStandardButtons(
-        QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.Cancel
-    )
-    confirm.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Cancel)
-    accepted = confirm.exec()
-    if accepted != QtWidgets.QMessageBox.StandardButton.Yes:
-        return
-    window.cashout_button.setEnabled(False)
-    window.show_status("Submitting cashout...")
-    try:
-        submitted = await client.close_position(market_slug, slippage_ticks)
-    except Exception as exc:
-        window.show_preview_error(safe_api_error_message(exc))
-    else:
-        window.show_status(f"Cashout submitted {submitted.order_id} ({submitted.status})")
-    finally:
-        await refresh_all(window, client)
 
 
 async def cashout_partial_position(

@@ -38,6 +38,13 @@ def test_positions_response_map() -> None:
     rows = adapt_positions({"positions": {"asset-1": {"netPosition": "2"}}})
     assert len(rows) == 1
     assert rows[0].net_contracts == Decimal("2")
+    assert rows[0].direction == "Long"
+
+
+def test_negative_position_infers_short_direction() -> None:
+    rows = adapt_positions([{"netPositionDecimal": "-2"}])
+    assert len(rows) == 1
+    assert rows[0].direction == "Short"
 
 
 def test_object_style_short_is_not_sign_flipped() -> None:

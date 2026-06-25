@@ -92,6 +92,9 @@ class PolymarketClient:
         )
         return adapt_close_position_response(raw)
 
+    async def cancel_order(self, market_slug: str, order_id: str) -> None:
+        await self.sdk.orders.cancel(order_id, {"marketSlug": market_slug})
+
     async def account_summary(self) -> AccountSummary:
         raw_balance = await self.balances_raw()
         positions = await self.positions()

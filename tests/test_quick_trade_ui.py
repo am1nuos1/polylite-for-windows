@@ -11,7 +11,10 @@ from PySide6 import QtCore, QtWidgets
 
 from polymarket_terminal.models import AccountSummary, MarketSummary, OrderBookSummary, PositionRow
 from polymarket_terminal.quick_trade import (
+    BUY_PANEL_WIDTH,
     DETAIL_WINDOW_SIZE,
+    REALTIME_REFRESH_INTERVAL_MS,
+    SEARCH_PANEL_WIDTH,
     SUMMARY_WINDOW_SIZE,
     QuickTradeWindow,
     cashout_side_for_position,
@@ -52,6 +55,15 @@ def test_positions_summary_uses_smaller_window_and_details_expands(
     window.close()
 
 
+def test_main_area_uses_search_buy_positions_columns(app: QtWidgets.QApplication) -> None:
+    window = QuickTradeWindow()
+    assert window.search_input.parentWidget().title() == "Search"
+    assert window.side_combo.parentWidget().title() == "Buy"
+    assert window.search_input.parentWidget().parentWidget().width() == SEARCH_PANEL_WIDTH
+    assert window.side_combo.parentWidget().parentWidget().width() == BUY_PANEL_WIDTH
+    window.close()
+
+
 def test_market_box_uses_search_selection_for_lock(app: QtWidgets.QApplication) -> None:
     window = QuickTradeWindow()
     slugs: list[str] = []
@@ -71,7 +83,8 @@ def test_market_box_uses_search_selection_for_lock(app: QtWidgets.QApplication) 
                 slug="aec-cs2-furia-fal-2026-06-21",
                 active="True",
                 side_labels=("FURIA", "Team Falcons"),
-                sports_market_type="moneyline",
+                market_type="moneyline",
+                sports_market_type="esports_match_winner",
                 live=True,
             ),
         )
@@ -80,10 +93,15 @@ def test_market_box_uses_search_selection_for_lock(app: QtWidgets.QApplication) 
     assert item.text() == "LIVE | FURIA vs Team Falcons\naec-cs2-furia-fal-2026-06-21"
     assert item.data(QtCore.Qt.ItemDataRole.UserRole) == "aec-cs2-furia-fal-2026-06-21"
     assert not item.icon().isNull()
-    assert "Type: Moneyline" in item.toolTip()
+    assert "Type: Esports Match Winner" in item.toolTip()
     assert "Sides: FURIA / Team Falcons" in item.toolTip()
     window._search_result_clicked(item)
     assert window.selected_slug_input.text() == "aec-cs2-furia-fal-2026-06-21"
+    assert [window.side_combo.itemText(index) for index in range(window.side_combo.count())] == [
+        "Buy FURIA Win",
+        "Buy Team Falcons Win",
+    ]
+    assert window.current_market is None
     window._lock_market_clicked()
     assert slugs == ["aec-cs2-furia-fal-2026-06-21"]
     window.close()
@@ -214,13 +232,15 @@ def test_realtime_refresh_toggle_controls_timer(app: QtWidgets.QApplication) -> 
     refreshes: list[bool] = []
     window.refresh_account_requested.connect(lambda: refreshes.append(True))
     assert window.refresh_account_button.text() == "Refresh all"
-    assert not window.realtime_refresh_toggle.isChecked()
+    assert window.realtime_refresh_toggle.isChecked()
+    assert window._realtime_refresh_timer.isActive()
+    assert window._realtime_refresh_timer.interval() == REALTIME_REFRESH_INTERVAL_MS
+    assert window._realtime_refresh_timer.interval() == 1000
+    window.realtime_refresh_toggle.setChecked(False)
     assert not window._realtime_refresh_timer.isActive()
     window.realtime_refresh_toggle.setChecked(True)
     assert window._realtime_refresh_timer.isActive()
     assert refreshes == [True]
-    window.realtime_refresh_toggle.setChecked(False)
-    assert not window._realtime_refresh_timer.isActive()
     window.close()
 
 
@@ -291,6 +311,14 @@ def test_cashout_side_inferred_from_position_direction() -> None:
     )
     assert (
         cashout_side_for_position(PositionRow(direction="Short"))
+        == QuickTradeSide.SELL_NO
+    )
+    assert (
+        cashout_side_for_position(PositionRow(direction="unavailable", net_contracts=Decimal("1")))
+        == QuickTradeSide.SELL_YES
+    )
+    assert (
+        cashout_side_for_position(PositionRow(direction="unavailable", net_contracts=Decimal("-1")))
         == QuickTradeSide.SELL_NO
     )
     assert cashout_side_for_position(PositionRow(direction="unavailable")) is None

@@ -120,7 +120,7 @@ Positions are shown in the right column.
 - Enter a positive USD amount for partial cashout.
 - Confirm before any real order is submitted.
 
-`Refresh all` updates balance, buying power, positions, and the locked market/order book. `Realtime refresh` runs the same refresh path every 5 seconds and skips overlapping refreshes.
+`Refresh all` updates balance, buying power, positions, and the locked market/order book. `Realtime refresh` runs the same refresh path every 1 second and skips overlapping refreshes.
 
 ## Safety
 

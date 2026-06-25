@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import Any, Protocol
 
 from polymarket_terminal.adapters import preview_fees_or_cost, read_text
-from polymarket_terminal.models import OrderBookSummary, SubmittedOrder
+from polymarket_terminal.models import UNAVAILABLE, OrderBookSummary, SubmittedOrder
 from polymarket_terminal.pricing import parse_decimal
 
 DEFAULT_SLIPPAGE_TICKS = 5
@@ -47,6 +47,8 @@ class TradingClientProtocol(Protocol):
     async def reconcile_after_unknown_order_state(self) -> None: ...
 
     async def refresh_after_order_change(self) -> None: ...
+
+    async def cancel_order(self, market_slug: str, order_id: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,11 +145,23 @@ class QuickTradeFlow:
             raise RuntimeError("Order state unknown") from None
         finally:
             self.submitting = False
-        await self.client.refresh_after_order_change()
-        return SubmittedOrder(
+        submitted = SubmittedOrder(
             order_id=read_text(raw, "id", "orderId", "order_id"),
             status=read_text(raw, "status", "state"),
         )
+        if (
+            preview.draft.order_kind == QuickOrderKind.LIMIT
+            and submitted.order_id != UNAVAILABLE
+            and should_cancel_unfilled_limit_order(submitted.status)
+        ):
+            await self.client.cancel_order(preview.draft.market_slug, submitted.order_id)
+            await self.client.refresh_after_order_change()
+            return SubmittedOrder(
+                order_id=submitted.order_id,
+                status=f"{submitted.status}; canceled unfilled limit order",
+            )
+        await self.client.refresh_after_order_change()
+        return submitted
 
 
 def parse_trade_amount(value: str) -> Decimal | None:
@@ -155,6 +169,15 @@ def parse_trade_amount(value: str) -> Decimal | None:
     if amount is None or amount <= Decimal("0"):
         return None
     return amount
+
+
+def should_cancel_unfilled_limit_order(status: str) -> bool:
+    normalized = status.casefold()
+    if normalized == UNAVAILABLE:
+        return True
+    if any(marker in normalized for marker in ("partial", "open", "pending", "resting")):
+        return True
+    return not any(marker in normalized for marker in ("filled", "executed", "completed"))
 
 
 def current_price_for_side(side: QuickTradeSide, order_book: OrderBookSummary) -> Decimal | None:
